@@ -1,0 +1,10 @@
+# Root-level environment files (real credentials go here, never commit them)
+.env
+.env.production
+.env.production.*
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.idea
+.vscode

@@ -1,0 +1,91 @@
+name: retiro-casais
+
+# Production deployment. Usage:
+#   docker compose -f compose.prod.yaml --env-file .env.production up -d --build
+#
+# Differences from the dev compose.yaml:
+#  - api/web are built from their "prod" Dockerfile targets (no bind mounts,
+#    optimized autoloader, no dev dependencies).
+#  - A single "nginx" image bundles the built SPA (static files) and proxies
+#    /api, /sanctum and /up to the api container.
+#  - Postgres is never published to the host.
+#  - Nothing is bind-mounted from the host except the Postgres data volume.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - retiro
+
+  api:
+    build:
+      context: ./apps/api
+      target: prod
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_URL: ${APP_URL}
+      APP_KEY: ${APP_KEY}
+      APP_TIMEZONE: America/Sao_Paulo
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_DATABASE}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      SESSION_DOMAIN: ${SESSION_DOMAIN}
+      SESSION_SECURE_COOKIE: "true"
+      SANCTUM_STATEFUL_DOMAINS: ${SANCTUM_STATEFUL_DOMAINS}
+      CORS_ALLOWED_ORIGINS: ${APP_URL}
+      LOG_CHANNEL: stack
+      LOG_LEVEL: warning
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "9000"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - retiro
+
+  nginx:
+    build:
+      context: .
+      dockerfile: infra/nginx/Dockerfile
+    restart: unless-stopped
+    volumes:
+      - ./apps/api/public:/var/www/html/public:ro
+    ports:
+      - "${NGINX_HTTP_PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:80/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - retiro
+
+networks:
+  retiro:
+    driver: bridge
+
+volumes:
+  postgres_data:

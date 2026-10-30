@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="tests/bootstrap.php"
+         colors="true"
+>
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>app</directory>
+        </include>
+    </source>
+    <php>
+        <!--
+            APP_ENV=testing makes Laravel load .env.testing instead of .env
+            (Illuminate\Foundation\Bootstrap\LoadEnvironmentVariables), which
+            is where DB_DATABASE=retiro_casais_testing etc. actually live.
+            Putting DB_* here too used to seem equivalent, but phpunit's
+            putenv()-based <env> override is NOT guaranteed to win over the
+            $_ENV value Dotenv sets when it loads .env afterwards — on this
+            project that silently pointed tests at the dev database. Don't
+            re-add DB_* overrides here; edit .env.testing instead.
+        -->
+        <env name="APP_ENV" value="testing"/>
+        <env name="DB_URL" value=""/>
+        <env name="PULSE_ENABLED" value="false"/>
+        <env name="TELESCOPE_ENABLED" value="false"/>
+        <env name="NIGHTWATCH_ENABLED" value="false"/>
+    </php>
+</phpunit>

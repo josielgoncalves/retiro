@@ -1,0 +1,29 @@
+// app global css
+
+@import url('https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Figtree:wght@400;500;600&display=swap');
+
+body {
+  font-family: 'Figtree', 'Roboto', sans-serif;
+  background: #FAF6EC;
+}
+
+.font-heading {
+  font-family: 'Lora', serif;
+}
+
+.bg-cream {
+  background-color: #F6E8CD;
+}
+
+.text-muted {
+  color: #64748B;
+}
+
+.q-field--outlined .q-field__control {
+  border-radius: 10px;
+}
+
+.card--soft {
+  border-radius: 16px;
+  box-shadow: 0 2px 10px rgba(38, 75, 66, 0.08);
+}
