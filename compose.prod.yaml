@@ -70,8 +70,11 @@ services:
     restart: unless-stopped
     volumes:
       - ./apps/api/public:/var/www/html/public:ro
+    # Only reachable from the host itself — the external reverse proxy
+    # (which terminates HTTPS) is expected to run on the same machine and
+    # connect via 127.0.0.1. Never bind this to 0.0.0.0 in production.
     ports:
-      - "${NGINX_HTTP_PORT:-8080}:80"
+      - "127.0.0.1:${NGINX_HTTP_PORT:-8083}:80"
     depends_on:
       api:
         condition: service_healthy
