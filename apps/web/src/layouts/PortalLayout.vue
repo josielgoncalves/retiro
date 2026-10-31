@@ -11,5 +11,13 @@
     <q-page-container style="background: #FAF6EC;">
       <router-view />
     </q-page-container>
+
+    <q-footer bordered class="bg-white">
+      <system-footer />
+    </q-footer>
   </q-layout>
 </template>
+
+<script setup lang="ts">
+import SystemFooter from '@/components/SystemFooter.vue';
+</script>
