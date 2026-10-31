@@ -19,8 +19,8 @@
         :src="data.retreat.cover_image_url"
         :alt="`Capa do ${data.retreat.name}`"
         :ratio="16 / 9"
-        class="rounded-borders q-mb-md"
-        fit="cover"
+        class="rounded-borders q-mb-md bg-grey-2"
+        fit="contain"
         @error="handleCoverImageError"
       />
 

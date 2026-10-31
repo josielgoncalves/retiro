@@ -79,6 +79,7 @@ describe('PortalPage', () => {
     expect(text).toContain('Enviar comprovante pelo WhatsApp');
     const cover = wrapper.find('img');
     expect(wrapper.findComponent({ name: 'QImg' }).props('ratio')).toBe(16 / 9);
+    expect(wrapper.findComponent({ name: 'QImg' }).props('fit')).toBe('contain');
     expect(cover.attributes('src')).toBe('/api/v1/public/retreats/1/cover');
     expect(cover.attributes('alt')).toBe('Capa do Retiro de Primavera');
     // No internal/administrative fields ever reach the template.
