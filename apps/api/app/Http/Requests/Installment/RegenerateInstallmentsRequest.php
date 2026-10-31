@@ -15,6 +15,7 @@ class RegenerateInstallmentsRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'installment_count' => ['required', 'integer', 'min:1', 'max:120'],
             'first_due_date' => ['required', 'date'],
             'periodicity' => ['required', Rule::in(['monthly', 'weekly'])],
             'confirm' => ['sometimes', 'boolean'],

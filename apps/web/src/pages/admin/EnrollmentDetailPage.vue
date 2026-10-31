@@ -80,7 +80,7 @@
           <q-card-section class="row items-center">
             <div class="text-subtitle1 text-weight-medium">Parcelas</div>
             <q-space />
-            <q-btn outline color="primary" icon="event_repeat" label="Regerar vencimentos" @click="openRegeneration" />
+            <q-btn outline color="primary" icon="event_repeat" label="Regerar parcelas" @click="openRegeneration" />
           </q-card-section>
           <q-list separator>
             <q-item v-for="installment in enrollment.installments" :key="installment.installment_number">
@@ -200,16 +200,32 @@
 
     <q-dialog v-model="showRegenerationDialog">
       <q-card style="min-width: 520px;">
-        <q-card-section class="text-h6">Regerar vencimentos pendentes</q-card-section>
+        <q-card-section class="text-h6">Regerar parcelas</q-card-section>
         <q-card-section class="q-gutter-md">
+          <div class="text-caption text-muted">
+            Quantidade atual: {{ enrollment.installments.length }}. Parcelas vinculadas a pagamentos serão preservadas.
+          </div>
+          <q-input v-model.number="regenerationForm.installment_count" outlined type="number" min="1" max="120" label="Nova quantidade total *" />
           <q-input v-model="regenerationForm.first_due_date" outlined type="date" label="Nova data inicial *" />
           <q-select v-model="regenerationForm.periodicity" outlined label="Periodicidade" :options="periodicityOptions" emit-value map-options />
           <q-btn outline color="primary" label="Visualizar comparação" :loading="loadingRegeneration" @click="previewRegeneration" />
           <q-list v-if="regenerationPreview.length" bordered separator>
-            <q-item v-for="item in regenerationPreview" :key="item.id"><q-item-section>Parcela {{ item.installment_number }}</q-item-section><q-item-section side>{{ formatDate(item.old_due_date) }} → {{ formatDate(item.new_due_date) }}</q-item-section></q-item>
+            <q-item v-for="item in regenerationPreview" :key="`${item.id ?? 'new'}-${item.installment_number}`">
+              <q-item-section>
+                <q-item-label>Parcela {{ item.installment_number }} — {{ formatCents(item.new_amount_cents) }}</q-item-label>
+                <q-item-label caption>
+                  <template v-if="item.preserved">Preservada por possuir histórico de pagamento</template>
+                  <template v-else-if="item.old_amount_cents !== null">Antes: {{ formatCents(item.old_amount_cents) }}</template>
+                  <template v-else>Nova parcela</template>
+                </q-item-label>
+              </q-item-section>
+              <q-item-section side>
+                {{ item.old_due_date ? `${formatDate(item.old_due_date)} → ` : '' }}{{ formatDate(item.new_due_date) }}
+              </q-item-section>
+            </q-item>
           </q-list>
         </q-card-section>
-        <q-card-actions align="right"><q-btn flat label="Cancelar" v-close-popup /><q-btn color="primary" label="Confirmar alteração" :disable="!regenerationPreview.length" :loading="savingRegeneration" @click="confirmDueDateRegeneration" /></q-card-actions>
+        <q-card-actions align="right"><q-btn flat label="Cancelar" v-close-popup /><q-btn color="primary" label="Confirmar alteração" :disable="!regenerationPreview.length" :loading="savingRegeneration" @click="confirmInstallmentRegeneration" /></q-card-actions>
       </q-card>
     </q-dialog>
 
@@ -240,7 +256,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { api } from '@/boot/axios';
@@ -305,9 +321,21 @@ const compensationOptions = computed(() => (enrollment.value?.installments ?? []
 const showRegenerationDialog = ref(false);
 const loadingRegeneration = ref(false);
 const savingRegeneration = ref(false);
-const regenerationForm = reactive({ first_due_date: '', periodicity: 'monthly' });
-const regenerationPreview = ref<Array<{ id: number; installment_number: number; old_due_date: string; new_due_date: string }>>([]);
+const regenerationForm = reactive({ installment_count: 1, first_due_date: '', periodicity: 'monthly' });
+const regenerationPreview = ref<Array<{
+  id: number | null;
+  installment_number: number;
+  old_due_date: string | null;
+  new_due_date: string;
+  old_amount_cents: number | null;
+  new_amount_cents: number;
+  preserved: boolean;
+}>>([]);
 const periodicityOptions = [{ label: 'Mensal', value: 'monthly' }, { label: 'Semanal', value: 'weekly' }];
+
+watch(regenerationForm, () => {
+  regenerationPreview.value = [];
+});
 
 const methodOptions = [
   { label: 'Pix', value: 'pix' },
@@ -404,6 +432,7 @@ async function submitInstallment() {
 }
 
 function openRegeneration() {
+  regenerationForm.installment_count = enrollment.value?.installments.length ?? 1;
   regenerationForm.first_due_date = '';
   regenerationPreview.value = [];
   showRegenerationDialog.value = true;
@@ -419,13 +448,15 @@ async function previewRegeneration() {
   } finally { loadingRegeneration.value = false; }
 }
 
-async function confirmDueDateRegeneration() {
+async function confirmInstallmentRegeneration() {
   savingRegeneration.value = true;
   try {
     await api.post(`/enrollments/${route.params.id}/installments/regenerate`, { ...regenerationForm, confirm: true });
     showRegenerationDialog.value = false;
-    $q.notify({ type: 'positive', message: 'Vencimentos atualizados.' });
+    $q.notify({ type: 'positive', message: 'Parcelas regeneradas.' });
     await loadAll();
+  } catch (err) {
+    $q.notify({ type: 'negative', message: (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Não foi possível regenerar as parcelas.' });
   } finally { savingRegeneration.value = false; }
 }
 

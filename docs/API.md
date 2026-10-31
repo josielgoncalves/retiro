@@ -47,6 +47,7 @@ Somente administradores podem criar ou alterar retiros. A resposta fornece `cove
 | GET | `/enrollments/{id}` | Inclui parcelas, pagamentos, totais calculados |
 | PATCH | `/enrollments/{id}` | Bloqueado se já houver pagamentos e a alteração envolver `payment_mode`/`total_amount_cents` |
 | POST | `/enrollments/{id}/cancel` | Preserva histórico financeiro |
+| POST | `/enrollments/{id}/installments/regenerate` | Prévia/confirmação da nova quantidade e dos vencimentos |
 
 Payload de criação (modalidade fixa):
 ```json
@@ -63,6 +64,19 @@ Payload de criação (modalidade fixa):
 }
 ```
 Modalidade flexível: omitir `installments`.
+
+Para regenerar parcelas de uma inscrição fixa, envie primeiro `confirm: false` para conferir a prévia e repita com `confirm: true` para aplicar:
+
+```json
+{
+  "installment_count": 8,
+  "first_due_date": "2027-01-10",
+  "periodicity": "monthly",
+  "confirm": false
+}
+```
+
+`installment_count` é a quantidade total final. Parcelas que possuem histórico de alocação de pagamento são preservadas e contabilizadas nesse total; o saldo restante é redistribuído entre as demais parcelas sem perda de centavos.
 
 ## Pagamentos
 

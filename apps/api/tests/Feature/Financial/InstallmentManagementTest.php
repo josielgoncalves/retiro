@@ -122,6 +122,64 @@ class InstallmentManagementTest extends TestCase
         $this->assertTrue(AuditLog::where('action', 'installment.due_dates_regenerated')->exists());
     }
 
+    public function test_regeneration_can_reduce_total_quantity_and_preserves_paid_history(): void
+    {
+        $enrollment = $this->enrollment(180000, 10);
+        $paidInstallment = $enrollment->installments->last();
+        $originalPaidAmount = $paidInstallment->amount_cents;
+        $originalPaidDueDate = $paidInstallment->due_date->toDateString();
+        $payment = $this->service->registerPayment($enrollment, [
+            'amount_cents' => $originalPaidAmount,
+            'paid_at' => now(),
+            'payment_method' => Payment::METHOD_PIX,
+            'installment_ids' => [$paidInstallment->id],
+        ], null);
+
+        $preview = $this->service->previewRegeneratedInstallments($enrollment->refresh(), 8, '2027-01-10', 'monthly');
+        $this->assertCount(8, $preview);
+        $this->assertSame(180000, array_sum(array_column($preview, 'new_amount_cents')));
+        $this->assertTrue($preview[0]['preserved']);
+
+        $result = $this->service->regenerateInstallments($enrollment->refresh(), 8, '2027-01-10', 'monthly');
+
+        $this->assertCount(8, $result);
+        $this->assertSame(180000, (int) $enrollment->installments()->sum('amount_cents'));
+        $this->assertSame(1, $paidInstallment->refresh()->installment_number);
+        $this->assertSame($originalPaidAmount, $paidInstallment->amount_cents);
+        $this->assertSame($originalPaidDueDate, $paidInstallment->due_date->toDateString());
+        $this->assertDatabaseHas('payments', ['id' => $payment->id]);
+        $this->assertDatabaseHas('payment_allocations', [
+            'payment_id' => $payment->id,
+            'installment_id' => $paidInstallment->id,
+            'amount_cents' => $originalPaidAmount,
+        ]);
+        $this->assertTrue(AuditLog::where('action', 'installment.created_by_regeneration')->exists());
+    }
+
+    public function test_regeneration_endpoint_previews_and_confirms_new_quantity(): void
+    {
+        $enrollment = $this->enrollment(180000, 10);
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $payload = [
+            'installment_count' => 8,
+            'first_due_date' => '2027-01-10',
+            'periodicity' => 'monthly',
+        ];
+
+        $this->actingAs($admin)
+            ->postJson("/api/v1/enrollments/{$enrollment->id}/installments/regenerate", $payload)
+            ->assertOk()
+            ->assertJsonCount(8, 'data')
+            ->assertJsonPath('data.7.installment_number', 8);
+
+        $this->actingAs($admin)
+            ->postJson("/api/v1/enrollments/{$enrollment->id}/installments/regenerate", [...$payload, 'confirm' => true])
+            ->assertOk()
+            ->assertJsonCount(8, 'data');
+
+        $this->assertDatabaseCount('installments', 8);
+    }
+
     public function test_operator_cannot_edit_installment_from_any_enrollment(): void
     {
         $installment = $this->enrollment()->installments->first();

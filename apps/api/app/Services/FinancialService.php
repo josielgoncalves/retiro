@@ -223,6 +223,146 @@ class FinancialService
     }
 
     /**
+     * Build the final schedule before changing it. Installments referenced by
+     * any payment allocation are immutable historical records; they remain in
+     * the schedule while the unreferenced portion is redistributed.
+     *
+     * @return array<int, array{
+     *   id:int|null,installment_number:int,old_installment_number:int|null,
+     *   old_due_date:string|null,new_due_date:string,
+     *   old_amount_cents:int|null,new_amount_cents:int,preserved:bool
+     * }>
+     */
+    public function previewRegeneratedInstallments(
+        Enrollment $enrollment,
+        int $targetCount,
+        string $firstDueDate,
+        string $periodicity,
+    ): array {
+        $current = $enrollment->installments()
+            ->with('allocations.payment')
+            ->orderBy('installment_number')
+            ->get();
+        $preserved = $current->filter(fn (Installment $installment) => $installment->allocations->isNotEmpty())->values();
+        $replaceable = $current->filter(fn (Installment $installment) => $installment->allocations->isEmpty())->values();
+
+        if ($targetCount < $preserved->count()) {
+            throw ValidationException::withMessages([
+                'installment_count' => ["A quantidade mínima é {$preserved->count()}, pois existem parcelas vinculadas a pagamentos."],
+            ]);
+        }
+
+        $preservedTotal = (int) $preserved->sum('amount_cents');
+        $redistributableTotal = $enrollment->total_amount_cents - $preservedTotal;
+        $newCount = $targetCount - $preserved->count();
+
+        if ($redistributableTotal < 0 || ($redistributableTotal > 0 && $newCount < 1)) {
+            throw ValidationException::withMessages([
+                'installment_count' => ['A quantidade informada não deixa nenhuma parcela disponível para o saldo restante.'],
+            ]);
+        }
+
+        if ($newCount > 0 && $redistributableTotal < $newCount) {
+            throw ValidationException::withMessages([
+                'installment_count' => ['A quantidade deve permitir parcelas de pelo menos um centavo.'],
+            ]);
+        }
+
+        if ($newCount > 0 && $redistributableTotal === 0) {
+            throw ValidationException::withMessages([
+                'installment_count' => ['Não é possível criar novas parcelas sem saldo para distribuir.'],
+            ]);
+        }
+
+        $preview = $preserved->map(fn (Installment $installment, int $index) => [
+            'id' => $installment->id,
+            'installment_number' => $index + 1,
+            'old_installment_number' => $installment->installment_number,
+            'old_due_date' => $installment->due_date->toDateString(),
+            'new_due_date' => $installment->due_date->toDateString(),
+            'old_amount_cents' => $installment->amount_cents,
+            'new_amount_cents' => $installment->amount_cents,
+            'preserved' => true,
+        ])->all();
+
+        if ($newCount === 0) {
+            return $preview;
+        }
+
+        $generated = $this->previewInstallments($redistributableTotal, $newCount, $firstDueDate, $periodicity);
+        foreach ($generated as $index => $item) {
+            /** @var Installment|null $old */
+            $old = $replaceable->get($index);
+            $preview[] = [
+                'id' => null,
+                'installment_number' => $preserved->count() + $index + 1,
+                'old_installment_number' => $old?->installment_number,
+                'old_due_date' => $old?->due_date?->toDateString(),
+                'new_due_date' => $item['due_date'],
+                'old_amount_cents' => $old?->amount_cents,
+                'new_amount_cents' => $item['amount_cents'],
+                'preserved' => false,
+            ];
+        }
+
+        return $preview;
+    }
+
+    public function regenerateInstallments(
+        Enrollment $enrollment,
+        int $targetCount,
+        string $firstDueDate,
+        string $periodicity,
+        ?User $user = null,
+    ): Collection {
+        return DB::transaction(function () use ($enrollment, $targetCount, $firstDueDate, $periodicity, $user) {
+            /** @var Enrollment $lockedEnrollment */
+            $lockedEnrollment = Enrollment::whereKey($enrollment->id)->lockForUpdate()->firstOrFail();
+            $current = Installment::where('enrollment_id', $lockedEnrollment->id)
+                ->with('allocations.payment')
+                ->orderBy('installment_number')
+                ->lockForUpdate()
+                ->get();
+            $plan = $this->previewRegeneratedInstallments($lockedEnrollment, $targetCount, $firstDueDate, $periodicity);
+            $preservedIds = collect($plan)->where('preserved', true)->pluck('id')->filter()->all();
+            $preserved = $current->whereIn('id', $preservedIds)->values();
+            $replaceable = $current->whereNotIn('id', $preservedIds);
+            $temporaryBase = ((int) $current->max('installment_number')) + $targetCount + 1;
+            $preservedBefore = $preserved->mapWithKeys(fn (Installment $item) => [$item->id => $item->toArray()]);
+
+            foreach ($preserved as $index => $installment) {
+                $installment->update(['installment_number' => $temporaryBase + $index]);
+            }
+
+            foreach ($replaceable as $installment) {
+                $before = $installment->toArray();
+                $installment->delete();
+                app(AuditLogger::class)->log('installment.removed_by_regeneration', $installment, $before, null, $user);
+            }
+
+            foreach ($preserved as $index => $installment) {
+                $installment->update(['installment_number' => $index + 1]);
+                app(AuditLogger::class)->log('installment.preserved_by_regeneration', $installment, $preservedBefore->get($installment->id), $installment->fresh()->toArray(), $user);
+            }
+
+            foreach (collect($plan)->where('preserved', false) as $item) {
+                $created = Installment::create([
+                    'enrollment_id' => $lockedEnrollment->id,
+                    'installment_number' => $item['installment_number'],
+                    'amount_cents' => $item['new_amount_cents'],
+                    'due_date' => $item['new_due_date'],
+                ]);
+                app(AuditLogger::class)->log('installment.created_by_regeneration', $created, null, $created->toArray(), $user);
+            }
+
+            return $lockedEnrollment->installments()
+                ->with('allocations.payment')
+                ->orderBy('installment_number')
+                ->get();
+        });
+    }
+
+    /**
      * Block changes to payment mode or contracted amount once the
      * enrollment already has active (non-reversed) payment history.
      */

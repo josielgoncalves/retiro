@@ -129,13 +129,13 @@ class EnrollmentController extends Controller
 
         $data = $request->validated();
         if (! ($data['confirm'] ?? false)) {
-            return response()->json(['data' => $this->financialService->previewPendingDueDates(
-                $enrollment, $data['first_due_date'], $data['periodicity']
+            return response()->json(['data' => $this->financialService->previewRegeneratedInstallments(
+                $enrollment, $data['installment_count'], $data['first_due_date'], $data['periodicity']
             )]);
         }
 
-        return InstallmentResource::collection($this->financialService->regeneratePendingDueDates(
-            $enrollment, $data['first_due_date'], $data['periodicity'], $request->user()
+        return InstallmentResource::collection($this->financialService->regenerateInstallments(
+            $enrollment, $data['installment_count'], $data['first_due_date'], $data['periodicity'], $request->user()
         ));
     }
 }

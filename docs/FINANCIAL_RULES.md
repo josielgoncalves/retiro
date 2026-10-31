@@ -14,6 +14,15 @@ Toda a lógica descrita aqui está implementada em `apps/api/app/Services/Financ
 - Uma alocação nunca pode exceder o saldo da parcela (validado por linha, com lock).
 - Pagamentos de inscrições fixas precisam ser **totalmente** alocados — não é permitido sobrar valor sem parcela correspondente.
 
+### Regeneração de parcelas
+
+- O admin pode alterar simultaneamente a quantidade total, a data inicial e a periodicidade das parcelas.
+- A operação exige uma prévia antes da confirmação e informa valores e vencimentos resultantes.
+- Parcelas com qualquer histórico de alocação de pagamento, inclusive de pagamento posteriormente estornado, não são apagadas. Elas são preservadas e contabilizadas na quantidade total escolhida.
+- As parcelas sem vínculo com pagamentos são substituídas, e o valor restante do contrato é redistribuído exatamente entre as novas parcelas, sem perda de centavos.
+- A quantidade escolhida não pode ser menor que a quantidade de parcelas que precisam ser preservadas.
+- A confirmação ocorre em transação, com lock da inscrição, e registra em auditoria as parcelas removidas, preservadas e criadas.
+
 ## Modalidade flexível
 
 - O admin informa só o valor contratado total.
