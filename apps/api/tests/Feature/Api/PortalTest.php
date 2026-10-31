@@ -133,6 +133,29 @@ class PortalTest extends TestCase
         $response->assertHeader('X-Robots-Tag', 'noindex, nofollow');
     }
 
+    public function test_personal_manifest_opens_the_same_couple_portal_without_exposing_couple_data(): void
+    {
+        $couple = Couple::factory()->create([
+            'partner_one_name' => 'Nome Privado Um',
+            'partner_two_name' => 'Nome Privado Dois',
+        ]);
+        $enrollment = Enrollment::factory()->flexible()->create(['couple_id' => $couple->id]);
+        ['plainText' => $plainText] = app(PortalTokenService::class)->generate($enrollment);
+
+        $response = $this->getJson("/api/v1/public/portal/{$plainText}/manifest.webmanifest");
+
+        $response->assertOk()
+            ->assertHeader('Content-Type', 'application/manifest+json')
+            ->assertHeader('Cache-Control', 'no-store, private')
+            ->assertJsonPath('id', "/c/{$plainText}")
+            ->assertJsonPath('start_url', "/c/{$plainText}")
+            ->assertJsonPath('display', 'standalone')
+            ->assertJsonPath('icons.1.sizes', '512x512');
+        $this->assertStringNotContainsString('Nome Privado', $response->getContent());
+
+        $this->getJson('/api/v1/public/portal/token-invalido/manifest.webmanifest')->assertNotFound();
+    }
+
     public function test_only_published_announcements_within_validity_are_visible(): void
     {
         $enrollment = Enrollment::factory()->flexible()->create();

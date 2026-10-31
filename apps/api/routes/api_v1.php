@@ -22,6 +22,7 @@ Route::middleware(['throttle:portal-access', 'portal.token', 'private.headers'])
     ->group(function () {
         Route::get('/', [PortalController::class, 'show']);
         Route::get('/announcements', [PortalController::class, 'announcements']);
+        Route::get('/manifest.webmanifest', [PortalController::class, 'manifest']);
     });
 
 Route::get('/public/retreats/{retreat}/cover', [RetreatController::class, 'cover'])

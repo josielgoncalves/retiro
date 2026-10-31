@@ -17,6 +17,7 @@ import PortalPage from '@/pages/portal/PortalPage.vue';
 describe('PortalPage', () => {
   beforeEach(() => {
     mockGet.mockReset();
+    document.head.querySelectorAll('link[rel="manifest"]').forEach((link) => link.remove());
   });
 
   it('shows the invalid-link screen when the token is revoked/expired/unknown', async () => {
@@ -77,6 +78,8 @@ describe('PortalPage', () => {
     expect(text).toContain('pix@example.com');
     expect(text).toContain('Copiar');
     expect(text).toContain('Enviar comprovante pelo WhatsApp');
+    expect(document.head.querySelector('link[rel="manifest"]')?.getAttribute('href'))
+      .toBe('/api/v1/public/portal/test-token/manifest.webmanifest');
     const cover = wrapper.find('img');
     expect(wrapper.findComponent({ name: 'QImg' }).props('ratio')).toBe(16 / 9);
     expect(wrapper.findComponent({ name: 'QImg' }).props('fit')).toBe('contain');
@@ -84,6 +87,46 @@ describe('PortalPage', () => {
     expect(cover.attributes('alt')).toBe('Capa do Retiro de Primavera');
     // No internal/administrative fields ever reach the template.
     expect(text).not.toContain('notes');
+  });
+
+  it('offers native installation and keeps the personalized portal as start URL', async () => {
+    mockGet.mockImplementation((url: string) => Promise.resolve({
+      data: url.includes('/announcements')
+        ? { data: [] }
+        : {
+            data: {
+              couple: { partner_one_name: 'Ana', partner_two_name: 'João' },
+              retreat: {
+                name: 'Retiro 2027', start_date: null, end_date: null, location: null,
+                cover_image_url: null, pix_key_type: null, pix_key: null,
+                pix_beneficiary_name: null, receipt_whatsapp: null,
+              },
+              payment_mode: 'flexible', total_amount_cents: 10000, total_paid_cents: 0,
+              balance_cents: 10000, percent_paid: 0, next_due_installment: null,
+              installments: null, payments: [],
+            },
+          },
+    }));
+    const wrapper = mount(withQLayout(PortalPage), { global: globalTestPlugins() });
+    await flushPromises();
+
+    const prompt = vi.fn().mockResolvedValue(undefined);
+    const event = new Event('beforeinstallprompt') as Event & {
+      prompt: () => Promise<void>;
+      userChoice: Promise<{ outcome: 'accepted'; platform: string }>;
+    };
+    event.prompt = prompt;
+    event.userChoice = Promise.resolve({ outcome: 'accepted', platform: 'web' });
+    window.dispatchEvent(event);
+    await wrapper.vm.$nextTick();
+
+    const installButton = wrapper.findAll('button').find((button) => button.text().includes('Instalar este portal'));
+    expect(installButton).toBeDefined();
+    await installButton!.trigger('click');
+    await flushPromises();
+
+    expect(prompt).toHaveBeenCalledOnce();
+    wrapper.unmount();
   });
 
   it('hides a cover that fails to load without breaking the portal', async () => {

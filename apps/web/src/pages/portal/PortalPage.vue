@@ -147,12 +147,23 @@
           </q-item>
         </q-list>
       </q-card>
+
+      <div v-if="canInstallPortal" class="text-center q-mt-md q-mb-sm">
+        <q-btn
+          outline
+          no-caps
+          color="primary"
+          icon="install_mobile"
+          label="Instalar este portal"
+          @click="installPortal"
+        />
+      </div>
     </template>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue';
 import { useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
 import axios from 'axios';
@@ -187,6 +198,11 @@ interface Announcement {
   published_at: string;
 }
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+}
+
 const route = useRoute();
 const $q = useQuasar();
 const loading = ref(true);
@@ -194,6 +210,15 @@ const invalid = ref(false);
 const data = ref<PortalData | null>(null);
 const announcements = ref<Announcement[]>([]);
 const coverImageFailed = ref(false);
+const installPrompt = shallowRef<BeforeInstallPromptEvent | null>(null);
+const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isStandalone = ref(
+  (typeof window.matchMedia === 'function' && window.matchMedia('(display-mode: standalone)').matches)
+  || Boolean((navigator as Navigator & { standalone?: boolean }).standalone),
+);
+let manifestLink: HTMLLinkElement | null = null;
+
+const canInstallPortal = computed(() => !isStandalone.value && (installPrompt.value !== null || isIos));
 
 const progressValue = computed(() => {
   if (!data.value || data.value.total_amount_cents === 0) return 0;
@@ -227,8 +252,55 @@ function handleCoverImageError() {
   });
 }
 
+function handleBeforeInstallPrompt(event: Event) {
+  event.preventDefault();
+  installPrompt.value = event as BeforeInstallPromptEvent;
+}
+
+function handleAppInstalled() {
+  installPrompt.value = null;
+  isStandalone.value = true;
+  $q.notify({ type: 'positive', message: 'Portal instalado com sucesso.' });
+}
+
+async function installPortal() {
+  if (isIos && !installPrompt.value) {
+    $q.notify({
+      type: 'info',
+      message: 'No Safari, toque em Compartilhar e depois em “Adicionar à Tela de Início”.',
+      timeout: 7000,
+    });
+    return;
+  }
+
+  if (!installPrompt.value) return;
+
+  const prompt = installPrompt.value;
+  await prompt.prompt();
+  const choice = await prompt.userChoice;
+  installPrompt.value = null;
+
+  if (choice.outcome === 'accepted') {
+    $q.notify({ type: 'positive', message: 'Instalação iniciada.' });
+  }
+}
+
 onMounted(async () => {
   const token = route.params.token as string;
+
+  window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  window.addEventListener('appinstalled', handleAppInstalled);
+
+  manifestLink = document.createElement('link');
+  manifestLink.rel = 'manifest';
+  manifestLink.href = `/api/v1/public/portal/${encodeURIComponent(token)}/manifest.webmanifest`;
+  document.head.appendChild(manifestLink);
+
+  if ('serviceWorker' in navigator) {
+    void navigator.serviceWorker.register('/sw.js', { scope: '/c/' }).catch(() => {
+      console.warn('Não foi possível registrar o suporte de instalação do portal.');
+    });
+  }
 
   try {
     const [portalResponse, announcementsResponse] = await Promise.all([
@@ -243,5 +315,11 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  window.removeEventListener('appinstalled', handleAppInstalled);
+  manifestLink?.remove();
 });
 </script>
