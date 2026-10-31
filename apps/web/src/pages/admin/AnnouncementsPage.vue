@@ -26,7 +26,7 @@
             <q-badge :color="announcement.is_published ? 'positive' : 'grey-6'">
               {{ announcement.is_published ? 'Publicado' : 'Rascunho' }}
             </q-badge>
-            <span v-if="announcement.visible_until"> · válido até {{ formatDate(announcement.visible_until) }}</span>
+            <span v-if="announcement.visible_until"> · válido até {{ formatDateTimeBR(announcement.visible_until) }}</span>
           </q-item-label>
         </q-item-section>
         <q-item-section side top>
@@ -65,7 +65,7 @@
 import { onMounted, reactive, ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { api } from '@/boot/axios';
-import { formatDate } from '@/utils/format';
+import { formatDateTimeBR } from '@/utils/format';
 
 interface Announcement {
   id: number;

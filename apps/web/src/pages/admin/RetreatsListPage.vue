@@ -22,9 +22,12 @@
         </q-td>
       </template>
       <template #body-cell-dates="props">
-        <q-td :props="props">
+        <q-td :props="props" class="notranslate" translate="no">
           {{ formatDate(props.row.start_date) }} – {{ formatDate(props.row.end_date) }}
         </q-td>
+      </template>
+      <template #body-cell-name="props">
+        <q-td :props="props" class="notranslate" translate="no">{{ props.value }}</q-td>
       </template>
     </q-table>
   </q-page>

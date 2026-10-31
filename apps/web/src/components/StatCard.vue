@@ -4,7 +4,7 @@
       <q-icon :name="icon" :color="color" size="32px" class="q-mr-md" />
       <div>
         <div class="text-caption text-muted">{{ label }}</div>
-        <div class="text-h6 text-weight-bold">{{ value }}</div>
+        <div class="text-h6 text-weight-bold notranslate" translate="no">{{ value }}</div>
       </div>
     </q-card-section>
   </q-card>

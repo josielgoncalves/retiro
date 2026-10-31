@@ -73,6 +73,7 @@ describe('PortalPage', () => {
     expect(text).toContain('Carlos');
     expect(text).toContain('Patrícia');
     expect(text).toContain('Retiro de Primavera');
+    expect(text).toContain('10/03/2027 – 12/03/2027');
     expect(text).toContain('Bem-vindos!');
     expect(text).toContain('Tragam roupas confortáveis.');
     expect(text).toContain('pix@example.com');
@@ -85,6 +86,8 @@ describe('PortalPage', () => {
     expect(wrapper.findComponent({ name: 'QImg' }).props('fit')).toBe('contain');
     expect(cover.attributes('src')).toBe('/api/v1/public/retreats/1/cover');
     expect(cover.attributes('alt')).toBe('Capa do Retiro de Primavera');
+    expect(wrapper.find('[translate="no"]').exists()).toBe(true);
+    expect(wrapper.find('.notranslate').exists()).toBe(true);
     // No internal/administrative fields ever reach the template.
     expect(text).not.toContain('notes');
   });

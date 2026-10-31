@@ -42,10 +42,10 @@
       <q-list separator>
         <q-item v-for="(item, idx) in report.overdue_installments" :key="idx">
           <q-item-section>
-            <q-item-label>{{ item.couple_name }} — parcela {{ item.installment_number }}</q-item-label>
-            <q-item-label caption>Venceu em {{ formatDate(item.due_date) }}</q-item-label>
+            <q-item-label><span class="notranslate" translate="no">{{ item.couple_name }}</span> — parcela {{ item.installment_number }}</q-item-label>
+            <q-item-label caption class="notranslate" translate="no">Venceu em {{ formatDate(item.due_date) }}</q-item-label>
           </q-item-section>
-          <q-item-section side>{{ formatCents(item.balance_cents) }}</q-item-section>
+          <q-item-section side class="notranslate" translate="no">{{ formatCents(item.balance_cents) }}</q-item-section>
         </q-item>
       </q-list>
     </q-card>

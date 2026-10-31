@@ -3,9 +3,9 @@
     <div class="row items-center q-mb-md q-gutter-sm">
       <div>
         <div class="text-h5 font-heading text-primary">
-          {{ enrollment.couple.partner_one_name }} &amp; {{ enrollment.couple.partner_two_name }}
+          <span class="notranslate" translate="no">{{ enrollment.couple.partner_one_name }} &amp; {{ enrollment.couple.partner_two_name }}</span>
         </div>
-        <div class="text-muted">{{ enrollment.retreat.name }}</div>
+        <div class="text-muted notranslate" translate="no">{{ enrollment.retreat.name }}</div>
       </div>
       <q-space />
       <q-badge :color="enrollment.payment_mode === 'fixed' ? 'primary' : 'secondary'" class="q-px-sm q-py-xs">
@@ -19,7 +19,7 @@
         <StatCard label="Valor contratado" :value="formatCents(enrollment.total_amount_cents)" icon="request_quote" />
       </div>
       <div class="col-6 col-md-3">
-        <StatCard label="Total recebido" :value="formatCents(enrollment.total_paid_cents)" icon="payments" color="positive" />
+        <StatCard label="Total pago" :value="formatCents(enrollment.total_paid_cents)" icon="payments" color="positive" />
       </div>
       <div class="col-6 col-md-3">
         <StatCard label="Saldo restante" :value="formatCents(enrollment.balance_cents)" icon="hourglass_bottom" color="warning" />
@@ -62,8 +62,8 @@
                   {{ formatCents(payment.amount_cents) }} · {{ methodLabel(payment.payment_method) }}
                 </q-item-label>
                 <q-item-label caption>
-                  Pago em {{ formatDate(payment.paid_at) }}
-                  <span v-if="payment.reversed_at"> · Estornado em {{ formatDate(payment.reversed_at) }} ({{ payment.reversal_reason }})</span>
+                  Pago em <span class="notranslate" translate="no">{{ formatDateTimeBR(payment.paid_at) }}</span>
+                  <span v-if="payment.reversed_at"> · Estornado em <span class="notranslate" translate="no">{{ formatDateTimeBR(payment.reversed_at) }}</span> ({{ payment.reversal_reason }})</span>
                 </q-item-label>
               </q-item-section>
               <q-item-section side v-if="!payment.reversed_at">
@@ -248,10 +248,12 @@ import StatCard from '@/components/StatCard.vue';
 import {
   formatCents,
   formatDate,
+  formatDateTimeBR,
   methodLabel,
   installmentStatusLabel,
   installmentStatusColor,
   normalizePhoneForWhatsApp,
+  todayDateBR,
 } from '@/utils/format';
 
 interface Installment { id: number; installment_number: number; amount_cents: number; paid_cents: number; due_date: string; status: string }
@@ -316,7 +318,7 @@ const methodOptions = [
 
 const paymentForm = reactive({
   amount_reais: 0,
-  paid_at: new Date().toISOString().slice(0, 10),
+  paid_at: todayDateBR(),
   payment_method: 'pix',
   reference: '',
 });

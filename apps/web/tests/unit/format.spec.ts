@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatCents, formatDate, methodLabel, installmentStatusLabel, normalizePhoneForWhatsApp } from '@/utils/format';
+import { formatCents, formatDateBR, formatDateTimeBR, parseDateBR, methodLabel, installmentStatusLabel, normalizePhoneForWhatsApp } from '@/utils/format';
 
 describe('formatCents', () => {
   it('formats cents as BRL currency', () => {
@@ -11,14 +11,28 @@ describe('formatCents', () => {
   });
 });
 
-describe('formatDate', () => {
+describe('civil dates', () => {
   it('formats an ISO date as dd/MM/yyyy', () => {
-    expect(formatDate('2027-03-10')).toBe('10/03/2027');
+    expect(formatDateBR('2026-11-15')).toBe('15/11/2026');
+    expect(formatDateBR('2028-02-29')).toBe('29/02/2028');
+    expect(formatDateBR('2027-01-31')).toBe('31/01/2027');
   });
 
   it('returns a dash for null/undefined', () => {
-    expect(formatDate(null)).toBe('—');
-    expect(formatDate(undefined)).toBe('—');
+    expect(formatDateBR(null)).toBe('—');
+    expect(formatDateBR(undefined)).toBe('—');
+  });
+
+  it('parses only valid Brazilian civil dates', () => {
+    expect(parseDateBR('15/11/2026')).toBe('2026-11-15');
+    expect(parseDateBR('29/02/2028')).toBe('2028-02-29');
+    expect(parseDateBR('29/02/2027')).toBeNull();
+  });
+});
+
+describe('formatDateTimeBR', () => {
+  it('formats an instant in America/Sao_Paulo regardless of browser timezone', () => {
+    expect(formatDateTimeBR('2026-11-15T02:30:00.000Z')).toBe('14/11/2026, 23:30');
   });
 });
 
@@ -36,7 +50,8 @@ describe('methodLabel', () => {
 
 describe('installmentStatusLabel', () => {
   it('translates known installment statuses to pt-BR', () => {
-    expect(installmentStatusLabel('paid')).toBe('Paga');
+    expect(installmentStatusLabel('paid')).toBe('Quitada');
+    expect(installmentStatusLabel('partial')).toBe('Parcialmente paga');
     expect(installmentStatusLabel('overdue')).toBe('Vencida');
   });
 });

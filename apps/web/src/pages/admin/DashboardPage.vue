@@ -70,8 +70,8 @@
             <q-list separator>
               <q-item v-for="payment in data.last_payments" :key="payment.id">
                 <q-item-section>
-                  <q-item-label>{{ formatCents(payment.amount_cents) }}</q-item-label>
-                  <q-item-label caption>{{ formatDate(payment.paid_at) }} · {{ methodLabel(payment.payment_method) }}</q-item-label>
+                  <q-item-label class="notranslate" translate="no">{{ formatCents(payment.amount_cents) }}</q-item-label>
+                  <q-item-label caption><span class="notranslate" translate="no">{{ formatDateTimeBR(payment.paid_at) }}</span> · {{ methodLabel(payment.payment_method) }}</q-item-label>
                 </q-item-section>
               </q-item>
               <q-item v-if="data.last_payments.length === 0">
@@ -88,7 +88,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
 import { api } from '@/boot/axios';
-import { formatCents, formatDate, methodLabel } from '@/utils/format';
+import { formatCents, formatDateTimeBR, methodLabel } from '@/utils/format';
 import StatCard from '@/components/StatCard.vue';
 
 interface Retreat {

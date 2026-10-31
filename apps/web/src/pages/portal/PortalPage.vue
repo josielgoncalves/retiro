@@ -26,10 +26,10 @@
 
       <div class="text-center q-mb-md">
         <div class="text-h6 font-heading text-primary">
-          Olá, {{ data.couple.partner_one_name }} &amp; {{ data.couple.partner_two_name }}!
+          Olá, <span class="notranslate" translate="no">{{ data.couple.partner_one_name }} &amp; {{ data.couple.partner_two_name }}</span>!
         </div>
-        <div class="text-muted">{{ data.retreat.name }}</div>
-        <div v-if="data.retreat.start_date" class="text-caption text-muted">
+        <div class="text-muted notranslate" translate="no">{{ data.retreat.name }}</div>
+        <div v-if="data.retreat.start_date" class="text-caption text-muted notranslate" translate="no">
           {{ formatDate(data.retreat.start_date) }} – {{ formatDate(data.retreat.end_date) }}
           <span v-if="data.retreat.location"> · {{ data.retreat.location }}</span>
         </div>
@@ -38,15 +38,15 @@
       <q-card class="card--soft q-mb-md">
         <q-card-section>
           <div class="row justify-between text-subtitle2 text-muted">
-            <span>Valor contratado</span>
+            <span class="notranslate" translate="no">Valor contratado</span>
             <span class="text-weight-bold text-dark">{{ formatCents(data.total_amount_cents) }}</span>
           </div>
           <div class="row justify-between text-subtitle2 text-muted q-mt-xs">
-            <span>Total pago</span>
+            <span class="notranslate" translate="no">Total pago</span>
             <span class="text-weight-bold text-positive">{{ formatCents(data.total_paid_cents) }}</span>
           </div>
           <div class="row justify-between text-subtitle2 text-muted q-mt-xs">
-            <span>Saldo restante</span>
+            <span class="notranslate" translate="no">Saldo restante</span>
             <span class="text-weight-bold text-warning">{{ formatCents(data.balance_cents) }}</span>
           </div>
 
@@ -58,7 +58,7 @@
             size="12px"
             class="q-mt-md"
           />
-          <div class="text-caption text-muted q-mt-xs text-right">
+          <div class="text-caption text-muted q-mt-xs text-right notranslate" translate="no">
             {{ progressLabel }}
           </div>
         </q-card-section>
@@ -68,8 +68,8 @@
         <q-card-section class="row items-center">
           <q-icon name="event" color="primary" size="28px" class="q-mr-sm" />
           <div>
-            <div class="text-caption text-muted">Próximo vencimento</div>
-            <div class="text-weight-bold">
+            <div class="text-caption text-muted notranslate" translate="no">Próximo vencimento</div>
+            <div class="text-weight-bold notranslate" translate="no">
               {{ formatDate(data.next_due_installment.due_date) }} — {{ formatCents(data.next_due_installment.balance_cents) }}
             </div>
           </div>
@@ -84,11 +84,11 @@
           <q-item v-for="installment in data.installments" :key="installment.installment_number">
             <q-item-section>
               <q-item-label>Parcela {{ installment.installment_number }}</q-item-label>
-              <q-item-label caption>Vencimento {{ formatDate(installment.due_date) }}</q-item-label>
+              <q-item-label caption class="notranslate" translate="no">Vencimento {{ formatDate(installment.due_date) }}</q-item-label>
             </q-item-section>
             <q-item-section side>
-              <div class="text-weight-medium">{{ formatCents(installment.amount_cents) }}</div>
-              <q-badge :color="installmentStatusColor(installment.status)">{{ installmentStatusLabel(installment.status) }}</q-badge>
+              <div class="text-weight-medium notranslate" translate="no">{{ formatCents(installment.amount_cents) }}</div>
+              <q-badge class="notranslate" translate="no" :color="installmentStatusColor(installment.status)">{{ installmentStatusLabel(installment.status) }}</q-badge>
             </q-item-section>
           </q-item>
         </q-list>
@@ -123,8 +123,8 @@
         <q-list separator>
           <q-item v-for="(payment, idx) in data.payments" :key="idx">
             <q-item-section>
-              <q-item-label>{{ formatCents(payment.amount_cents) }}</q-item-label>
-              <q-item-label caption>{{ formatDate(payment.paid_at) }} · {{ methodLabel(payment.payment_method) }}</q-item-label>
+              <q-item-label class="notranslate" translate="no">{{ formatCents(payment.amount_cents) }}</q-item-label>
+              <q-item-label caption><span class="notranslate" translate="no">{{ formatDateTimeBR(payment.paid_at) }}</span> · {{ methodLabel(payment.payment_method) }}</q-item-label>
             </q-item-section>
           </q-item>
           <q-item v-if="data.payments.length === 0">
@@ -142,7 +142,7 @@
             <q-item-section>
               <q-item-label class="text-weight-medium">{{ announcement.title }}</q-item-label>
               <q-item-label caption lines="4" style="white-space: pre-line;">{{ announcement.content }}</q-item-label>
-              <q-item-label caption>{{ formatDate(announcement.published_at) }}</q-item-label>
+              <q-item-label caption>{{ formatDateTimeBR(announcement.published_at) }}</q-item-label>
             </q-item-section>
           </q-item>
         </q-list>
@@ -167,7 +167,7 @@ import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue';
 import { useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
 import axios from 'axios';
-import { formatCents, formatDate, methodLabel, installmentStatusLabel, installmentStatusColor, normalizePhoneForWhatsApp } from '@/utils/format';
+import { formatCents, formatDate, formatDateTimeBR, methodLabel, installmentStatusLabel, installmentStatusColor, normalizePhoneForWhatsApp } from '@/utils/format';
 
 interface PortalData {
   couple: { partner_one_name: string; partner_two_name: string };
