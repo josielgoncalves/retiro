@@ -34,7 +34,7 @@
 
         <q-separator />
         <div class="text-subtitle1 text-weight-medium">Identidade visual</div>
-        <q-img v-if="coverPreviewUrl" :src="coverPreviewUrl" ratio="16/9" fit="cover" class="rounded-borders" />
+        <q-img v-if="coverPreviewUrl" :src="coverPreviewUrl" :ratio="16 / 9" fit="cover" class="rounded-borders" />
         <div v-else class="cover-placeholder rounded-borders column items-center justify-center text-grey-7">
           <q-icon name="image_not_supported" size="40px" />
           <div class="q-mt-sm">Nenhuma imagem de capa</div>
