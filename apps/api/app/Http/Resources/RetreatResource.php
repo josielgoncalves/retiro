@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Services\RetreatMediaService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -18,7 +19,7 @@ class RetreatResource extends JsonResource
             'location' => $this->location,
             'registration_open' => $this->registration_open,
             'status' => $this->status,
-            'cover_image_url' => $this->cover_image_path ? route('retreats.cover', $this->id, false) : null,
+            'cover_image_url' => app(RetreatMediaService::class)->coverUrl($this->resource),
             'pix_key_type' => $this->pix_key_type,
             'pix_key' => $this->pix_key,
             'pix_beneficiary_name' => $this->pix_beneficiary_name,

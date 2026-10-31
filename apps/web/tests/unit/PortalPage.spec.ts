@@ -77,7 +77,41 @@ describe('PortalPage', () => {
     expect(text).toContain('pix@example.com');
     expect(text).toContain('Copiar');
     expect(text).toContain('Enviar comprovante pelo WhatsApp');
+    const cover = wrapper.find('img');
+    expect(cover.attributes('src')).toBe('/api/v1/public/retreats/1/cover');
+    expect(cover.attributes('alt')).toBe('Capa do Retiro de Primavera');
     // No internal/administrative fields ever reach the template.
     expect(text).not.toContain('notes');
+  });
+
+  it('hides a cover that fails to load without breaking the portal', async () => {
+    mockGet.mockImplementation((url: string) => Promise.resolve({
+      data: url.includes('/announcements')
+        ? { data: [] }
+        : {
+            data: {
+              couple: { partner_one_name: 'Ana', partner_two_name: 'João' },
+              retreat: {
+                name: 'Retiro 2027', start_date: null, end_date: null, location: null,
+                cover_image_url: 'https://retiro.example/cover.jpg', pix_key_type: null,
+                pix_key: null, pix_beneficiary_name: null, receipt_whatsapp: null,
+              },
+              payment_mode: 'flexible', total_amount_cents: 10000, total_paid_cents: 0,
+              balance_cents: 10000, percent_paid: 0, next_due_installment: null,
+              installments: null, payments: [],
+            },
+          },
+    }));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const wrapper = mount(withQLayout(PortalPage), { global: globalTestPlugins() });
+    await flushPromises();
+
+    await wrapper.findComponent({ name: 'QImg' }).vm.$emit('error', new Event('error'));
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.findComponent({ name: 'QImg' }).exists()).toBe(false);
+    expect(wrapper.text()).toContain('Olá, Ana & João!');
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

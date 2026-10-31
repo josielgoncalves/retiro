@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Retreat;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -13,6 +14,27 @@ use Throwable;
 class RetreatMediaService
 {
     public const DISK = 'local';
+
+    public function coverUrl(Retreat $retreat): ?string
+    {
+        if (! $retreat->cover_image_path) {
+            return null;
+        }
+
+        if (! Storage::disk(self::DISK)->exists($retreat->cover_image_path)) {
+            Log::warning('Capa de retiro cadastrada, mas ausente no storage.', [
+                'retreat_id' => $retreat->id,
+                'disk' => self::DISK,
+            ]);
+
+            return null;
+        }
+
+        return route('retreats.cover', [
+            'retreat' => $retreat->id,
+            'v' => substr(hash('sha256', $retreat->cover_image_path), 0, 12),
+        ]);
+    }
 
     public function replaceCover(Retreat $retreat, UploadedFile $image): string
     {

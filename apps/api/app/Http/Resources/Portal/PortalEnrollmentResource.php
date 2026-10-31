@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Portal;
 
 use App\Models\Enrollment;
+use App\Services\RetreatMediaService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -30,9 +31,7 @@ class PortalEnrollmentResource extends JsonResource
                 'start_date' => $this->retreat->start_date?->toDateString(),
                 'end_date' => $this->retreat->end_date?->toDateString(),
                 'location' => $this->retreat->location,
-                'cover_image_url' => $this->retreat->cover_image_path
-                    ? route('retreats.cover', $this->retreat->id, false)
-                    : null,
+                'cover_image_url' => app(RetreatMediaService::class)->coverUrl($this->retreat),
                 'pix_key_type' => $this->retreat->pix_key_type,
                 'pix_key' => $this->retreat->pix_key,
                 'pix_beneficiary_name' => $this->retreat->pix_beneficiary_name,

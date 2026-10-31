@@ -14,7 +14,15 @@
     </div>
 
     <template v-else-if="data">
-      <q-img v-if="data.retreat.cover_image_url" :src="data.retreat.cover_image_url" ratio="16/9" class="rounded-borders q-mb-md" fit="cover" />
+      <q-img
+        v-if="data.retreat.cover_image_url && !coverImageFailed"
+        :src="data.retreat.cover_image_url"
+        :alt="`Capa do ${data.retreat.name}`"
+        ratio="16/9"
+        class="rounded-borders q-mb-md"
+        fit="cover"
+        @error="handleCoverImageError"
+      />
 
       <div class="text-center q-mb-md">
         <div class="text-h6 font-heading text-primary">
@@ -185,6 +193,7 @@ const loading = ref(true);
 const invalid = ref(false);
 const data = ref<PortalData | null>(null);
 const announcements = ref<Announcement[]>([]);
+const coverImageFailed = ref(false);
 
 const progressValue = computed(() => {
   if (!data.value || data.value.total_amount_cents === 0) return 0;
@@ -209,6 +218,13 @@ function sendReceiptByWhatsApp() {
   const coupleName = `${data.value.couple.partner_one_name} e ${data.value.couple.partner_two_name}`;
   const message = `Olá! Somos ${coupleName}. Segue o comprovante referente ao ${data.value.retreat.name}.`;
   window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+}
+
+function handleCoverImageError() {
+  coverImageFailed.value = true;
+  console.warn('Não foi possível carregar a capa do retiro no portal.', {
+    retreat: data.value?.retreat.name,
+  });
 }
 
 onMounted(async () => {

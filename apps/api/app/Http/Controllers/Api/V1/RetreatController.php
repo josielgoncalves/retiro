@@ -11,6 +11,7 @@ use App\Services\AuditLogger;
 use App\Services\RetreatMediaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -80,7 +81,16 @@ class RetreatController extends Controller
 
     public function cover(Retreat $retreat): BinaryFileResponse
     {
-        abort_unless($retreat->cover_image_path && Storage::disk(RetreatMediaService::DISK)->exists($retreat->cover_image_path), 404);
+        if (! $retreat->cover_image_path || ! Storage::disk(RetreatMediaService::DISK)->exists($retreat->cover_image_path)) {
+            if ($retreat->cover_image_path) {
+                Log::warning('Requisição de capa ausente no storage.', [
+                    'retreat_id' => $retreat->id,
+                    'disk' => RetreatMediaService::DISK,
+                ]);
+            }
+
+            abort(404);
+        }
 
         return response()->file(Storage::disk(RetreatMediaService::DISK)->path($retreat->cover_image_path), [
             'Content-Type' => Storage::disk(RetreatMediaService::DISK)->mimeType($retreat->cover_image_path),

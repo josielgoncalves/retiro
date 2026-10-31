@@ -8,6 +8,7 @@ use App\Models\Enrollment;
 use App\Models\Retreat;
 use App\Services\PortalTokenService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class PortalTest extends TestCase
@@ -38,6 +39,7 @@ class PortalTest extends TestCase
 
     public function test_portal_exposes_retreat_cover_and_manual_payment_channels(): void
     {
+        Storage::fake('local');
         $retreat = Retreat::factory()->create([
             'cover_image_path' => 'retreats/1/covers/cover.jpg',
             'pix_key_type' => 'email',
@@ -45,15 +47,34 @@ class PortalTest extends TestCase
             'pix_beneficiary_name' => 'Retiro de Casais',
             'receipt_whatsapp' => '+55 63 99999-0000',
         ]);
+        Storage::disk('local')->put($retreat->cover_image_path, 'cover-image');
         $enrollment = Enrollment::factory()->flexible()->create(['retreat_id' => $retreat->id]);
         ['plainText' => $plainText] = app(PortalTokenService::class)->generate($enrollment);
 
         $this->getJson("/api/v1/public/portal/{$plainText}")
             ->assertOk()
-            ->assertJsonPath('data.retreat.cover_image_url', "/api/v1/public/retreats/{$retreat->id}/cover")
+            ->assertJsonPath(
+                'data.retreat.cover_image_url',
+                rtrim(config('app.url'), "/")."/api/v1/public/retreats/{$retreat->id}/cover?v="
+                    .substr(hash('sha256', $retreat->cover_image_path), 0, 12),
+            )
             ->assertJsonPath('data.retreat.pix_key', 'pix@example.com')
             ->assertJsonPath('data.retreat.pix_beneficiary_name', 'Retiro de Casais')
             ->assertJsonPath('data.retreat.receipt_whatsapp', '+55 63 99999-0000');
+    }
+
+    public function test_portal_omits_cover_url_when_registered_file_is_missing(): void
+    {
+        Storage::fake('local');
+        $retreat = Retreat::factory()->create([
+            'cover_image_path' => 'retreats/1/covers/missing.jpg',
+        ]);
+        $enrollment = Enrollment::factory()->flexible()->create(['retreat_id' => $retreat->id]);
+        ['plainText' => $plainText] = app(PortalTokenService::class)->generate($enrollment);
+
+        $this->getJson("/api/v1/public/portal/{$plainText}")
+            ->assertOk()
+            ->assertJsonPath('data.retreat.cover_image_url', null);
     }
 
     public function test_portal_response_never_exposes_internal_or_administrative_data(): void

@@ -120,6 +120,29 @@ class RetreatCustomizationTest extends TestCase
         $this->get('/api/v1/public/retreats/999999/cover')->assertNotFound();
     }
 
+    public function test_cover_url_is_absolute_and_changes_after_replacement(): void
+    {
+        $retreat = Retreat::factory()->create();
+
+        $this->actingAs($this->admin)->post("/api/v1/retreats/{$retreat->id}", [
+            '_method' => 'PATCH',
+            'cover_image' => $this->fakePng('primeira.png'),
+        ])->assertOk();
+        $firstUrl = $this->actingAs($this->admin)->getJson("/api/v1/retreats/{$retreat->id}")
+            ->json('data.cover_image_url');
+
+        $this->actingAs($this->admin)->post("/api/v1/retreats/{$retreat->id}", [
+            '_method' => 'PATCH',
+            'cover_image' => $this->fakePng('segunda.png'),
+        ])->assertOk();
+        $secondUrl = $this->actingAs($this->admin)->getJson("/api/v1/retreats/{$retreat->id}")
+            ->json('data.cover_image_url');
+
+        $this->assertStringStartsWith(rtrim(config('app.url'), '/').'/api/v1/public/retreats/', $firstUrl);
+        $this->assertStringContainsString('?v=', $firstUrl);
+        $this->assertNotSame($firstUrl, $secondUrl);
+    }
+
     public function test_operator_cannot_create_or_customize_retreats(): void
     {
         $operator = User::factory()->create(['role' => User::ROLE_OPERATOR]);
