@@ -4,6 +4,10 @@ PostgreSQL 16. Todas as migrations estão em `apps/api/database/migrations/`. Va
 
 ## Tabelas
 
+### `retreats`
+
+Além dos dados gerais do evento, concentra a identidade e os canais financeiros: `cover_image_path` (caminho relativo no storage privado), `pix_key_type`, `pix_key`, `pix_beneficiary_name` e `receipt_whatsapp`. O banco não armazena Base64 nem URLs de ambiente.
+
 ### `users`
 Administradores do painel. `role` (`admin`|`operator`, `CHECK`), `active` (boolean — desativar um usuário bloqueia login **e** invalida sessões já abertas, via middleware `active`).
 

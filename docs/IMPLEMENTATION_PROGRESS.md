@@ -37,6 +37,7 @@ Todas as 5 fases concluídas. MVP funcional, testado (backend e frontend) e docu
 ### Frontend (Quasar 2 / Vue 3 / TypeScript / Pinia)
 - Autenticação via Sanctum SPA (cookie + CSRF), guard de rotas por `meta.requiresAuth`/`requiresAdmin`/`guestOnly`.
 - Painel administrativo: login, dashboard (por retiro, nunca mistura dados entre retiros), retiros (lista/form), casais (lista com busca/filtro/paginação, form, inscrições vinculadas), inscrição (criação em ambas modalidades), detalhe da inscrição (financeiro completo, registro de pagamento, estorno, geração/regeneração/revogação de link, compartilhamento WhatsApp), avisos (publicar/despublicar), relatórios (tabela + exportação CSV), usuários (admin only).
+- O cadastro de retiro centraliza capa 16:9, chave PIX, favorecido e WhatsApp de comprovantes. As capas ficam em storage privado e são servidas por endpoint controlado; sem capa cadastrada, o portal não exibe imagem de outro evento.
 - Portal do casal: mobile-first, saudação personalizada, resumo financeiro com barra de progresso, parcelas (quando fixa), histórico de pagamentos, avisos, tela dedicada para link inválido/expirado/revogado (resposta genérica, não distingue o motivo).
 - Identidade visual: paleta verde profundo/verde suave/creme conforme especificado, tipografia Lora (títulos) + Figtree (texto), sem emojis, sem gradientes excessivos.
 - `pt-BR` aplicado via `quasar/lang/pt-BR` (datas, mensagens de componentes), formatação de moeda via `Intl`/`toLocaleString`.

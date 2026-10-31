@@ -41,7 +41,17 @@ describe('PortalPage', () => {
         data: {
           data: {
             couple: { partner_one_name: 'Carlos', partner_two_name: 'Patrícia' },
-            retreat: { name: 'Retiro de Primavera', start_date: '2027-03-10', end_date: '2027-03-12', location: 'Vale da Paz' },
+            retreat: {
+              name: 'Retiro de Primavera',
+              start_date: '2027-03-10',
+              end_date: '2027-03-12',
+              location: 'Vale da Paz',
+              cover_image_url: '/api/v1/public/retreats/1/cover',
+              pix_key_type: 'email',
+              pix_key: 'pix@example.com',
+              pix_beneficiary_name: 'Comunidade Retiro',
+              receipt_whatsapp: '+55 63 99999-0000',
+            },
             payment_mode: 'flexible',
             total_amount_cents: 50000,
             total_paid_cents: 20000,
@@ -64,6 +74,9 @@ describe('PortalPage', () => {
     expect(text).toContain('Retiro de Primavera');
     expect(text).toContain('Bem-vindos!');
     expect(text).toContain('Tragam roupas confortáveis.');
+    expect(text).toContain('pix@example.com');
+    expect(text).toContain('Copiar');
+    expect(text).toContain('Enviar comprovante pelo WhatsApp');
     // No internal/administrative fields ever reach the template.
     expect(text).not.toContain('notes');
   });

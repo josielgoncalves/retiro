@@ -36,4 +36,9 @@ class EnrollmentPolicy
     {
         return true;
     }
+
+    public function manageInstallments(User $user, Enrollment $enrollment): bool
+    {
+        return $user->isAdmin();
+    }
 }

@@ -46,24 +46,29 @@
           inline
         />
 
-        <div v-if="form.payment_mode === 'fixed'">
-          <div class="row items-center q-mb-sm">
-            <div class="text-subtitle2">Parcelas</div>
-            <q-space />
-            <q-btn flat dense icon="add" label="Adicionar parcela" @click="addInstallment" />
+        <div v-if="form.payment_mode === 'fixed'" class="q-gutter-md">
+          <div class="text-subtitle2">Geração das parcelas</div>
+          <div class="row q-col-gutter-sm">
+            <q-input class="col-12 col-sm-4" v-model.number="form.installment_count" outlined type="number" min="1" max="120" label="Quantidade *" />
+            <q-input class="col-12 col-sm-4" v-model="form.first_due_date" outlined type="date" label="Primeiro vencimento *" />
+            <q-select class="col-12 col-sm-4" v-model="form.periodicity" outlined label="Periodicidade *" :options="periodicityOptions" emit-value map-options />
           </div>
+          <q-btn color="secondary" outline icon="auto_awesome" label="Gerar parcelas" :loading="generating" @click="generateInstallments" />
+
+          <div v-if="form.installments.length" class="text-subtitle2">Prévia editável</div>
 
           <div v-for="(installment, index) in form.installments" :key="index" class="row items-center q-col-gutter-sm q-mb-sm">
-            <div class="col">
+            <div class="col-1 text-caption">{{ index + 1 }}ª</div>
+            <div class="col-5">
               <q-input v-model="installment.due_date" outlined dense type="date" :label="`Vencimento parcela ${index + 1}`" />
             </div>
-            <div class="col-auto">
-              <q-btn flat dense round icon="close" @click="removeInstallment(index)" />
+            <div class="col-6">
+              <q-input v-model.number="installment.amount_reais" outlined dense type="number" min="0.01" step="0.01" label="Valor (R$)" />
             </div>
           </div>
 
-          <div v-if="estimatedInstallmentAmount" class="text-caption text-muted">
-            Valor estimado por parcela: {{ estimatedInstallmentAmount }}
+          <div v-if="form.installments.length" class="text-caption" :class="installmentDifference === 0 ? 'text-positive' : 'text-negative'">
+            Soma: {{ formatCents(installmentSum) }}<span v-if="installmentDifference !== 0"> · diferença: {{ formatCents(Math.abs(installmentDifference)) }}</span>
           </div>
         </div>
 
@@ -88,6 +93,7 @@ const router = useRouter();
 const $q = useQuasar();
 
 const saving = ref(false);
+const generating = ref(false);
 const retreatOptions = ref<Array<{ label: string; value: number }>>([]);
 const allCoupleOptions = ref<Array<{ label: string; value: number }>>([]);
 const coupleOptions = ref<Array<{ label: string; value: number }>>([]);
@@ -97,25 +103,44 @@ const form = reactive({
   couple_id: (route.query.couple_id ? Number(route.query.couple_id) : null) as number | null,
   payment_mode: 'flexible',
   total_amount_reais: 0,
-  installments: [] as Array<{ due_date: string }>,
+  installment_count: 1,
+  first_due_date: '',
+  periodicity: 'monthly',
+  installments: [] as Array<{ due_date: string; amount_reais: number }>,
 });
+
+const periodicityOptions = [
+  { label: 'Mensal', value: 'monthly' },
+  { label: 'Semanal', value: 'weekly' },
+];
 
 function required(val: unknown) {
   return (val !== null && val !== '' && val !== undefined) || 'Campo obrigatório';
 }
 
-function addInstallment() {
-  form.installments.push({ due_date: '' });
-}
-function removeInstallment(index: number) {
-  form.installments.splice(index, 1);
-}
+const installmentSum = computed(() => form.installments.reduce((sum, item) => sum + Math.round(item.amount_reais * 100), 0));
+const installmentDifference = computed(() => Math.round(form.total_amount_reais * 100) - installmentSum.value);
 
-const estimatedInstallmentAmount = computed(() => {
-  if (form.installments.length === 0 || !form.total_amount_reais) return null;
-  const cents = Math.round(form.total_amount_reais * 100);
-  return formatCents(Math.floor(cents / form.installments.length));
-});
+async function generateInstallments() {
+  generating.value = true;
+  try {
+    const response = await api.post('/installments/preview', {
+      total_amount_cents: Math.round(form.total_amount_reais * 100),
+      installment_count: form.installment_count,
+      first_due_date: form.first_due_date,
+      periodicity: form.periodicity,
+    });
+    form.installments = response.data.data.map((item: { due_date: string; amount_cents: number }) => ({
+      due_date: item.due_date,
+      amount_reais: item.amount_cents / 100,
+    }));
+  } catch (err) {
+    const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Não foi possível gerar as parcelas.';
+    $q.notify({ type: 'negative', message });
+  } finally {
+    generating.value = false;
+  }
+}
 
 function filterCouples(val: string, update: (callback: () => void) => void) {
   update(() => {
@@ -139,6 +164,10 @@ onMounted(async () => {
 });
 
 async function handleSubmit() {
+  if (form.payment_mode === 'fixed' && (form.installments.length === 0 || installmentDifference.value !== 0)) {
+    $q.notify({ type: 'negative', message: 'Gere as parcelas e confira se a soma corresponde ao valor contratado.' });
+    return;
+  }
   saving.value = true;
   try {
     const payload: Record<string, unknown> = {
@@ -149,7 +178,7 @@ async function handleSubmit() {
     };
 
     if (form.payment_mode === 'fixed') {
-      payload.installments = form.installments.map((i) => ({ due_date: i.due_date }));
+      payload.installments = form.installments.map((i) => ({ due_date: i.due_date, amount_cents: Math.round(i.amount_reais * 100) }));
     }
 
     const response = await api.post('/enrollments', payload);

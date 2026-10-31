@@ -28,6 +28,7 @@ class StoreEnrollmentRequest extends FormRequest
             'registered_at' => ['nullable', 'date'],
             'installments' => ['required_if:payment_mode,'.Enrollment::MODE_FIXED, 'array', 'min:1'],
             'installments.*.due_date' => ['required', 'date'],
+            'installments.*.amount_cents' => ['sometimes', 'required', 'integer', 'min:1'],
         ];
     }
 }

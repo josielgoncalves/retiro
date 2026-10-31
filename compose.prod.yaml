@@ -9,7 +9,7 @@ name: retiro-casais
 #  - A single "nginx" image bundles the built SPA (static files) and proxies
 #    /api, /sanctum and /up to the api container.
 #  - Postgres is never published to the host.
-#  - Nothing is bind-mounted from the host except the Postgres data volume.
+#  - Banco e uploads privados usam volumes persistentes gerenciados pelo Docker.
 
 services:
   postgres:
@@ -34,6 +34,8 @@ services:
       context: ./apps/api
       target: prod
     restart: unless-stopped
+    volumes:
+      - retreat_uploads:/var/www/html/storage/app/private
     environment:
       APP_ENV: production
       APP_DEBUG: "false"
@@ -92,3 +94,4 @@ networks:
 
 volumes:
   postgres_data:
+  retreat_uploads:

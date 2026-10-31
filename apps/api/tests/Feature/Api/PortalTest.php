@@ -5,6 +5,7 @@ namespace Tests\Feature\Api;
 use App\Models\Announcement;
 use App\Models\Couple;
 use App\Models\Enrollment;
+use App\Models\Retreat;
 use App\Services\PortalTokenService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -33,6 +34,26 @@ class PortalTest extends TestCase
             ->assertJsonPath('data.couple.partner_one_name', 'Rafael')
             ->assertJsonPath('data.couple.partner_two_name', 'Juliana')
             ->assertJsonPath('data.total_amount_cents', 50000);
+    }
+
+    public function test_portal_exposes_retreat_cover_and_manual_payment_channels(): void
+    {
+        $retreat = Retreat::factory()->create([
+            'cover_image_path' => 'retreats/1/covers/cover.jpg',
+            'pix_key_type' => 'email',
+            'pix_key' => 'pix@example.com',
+            'pix_beneficiary_name' => 'Retiro de Casais',
+            'receipt_whatsapp' => '+55 63 99999-0000',
+        ]);
+        $enrollment = Enrollment::factory()->flexible()->create(['retreat_id' => $retreat->id]);
+        ['plainText' => $plainText] = app(PortalTokenService::class)->generate($enrollment);
+
+        $this->getJson("/api/v1/public/portal/{$plainText}")
+            ->assertOk()
+            ->assertJsonPath('data.retreat.cover_image_url', "/api/v1/public/retreats/{$retreat->id}/cover")
+            ->assertJsonPath('data.retreat.pix_key', 'pix@example.com')
+            ->assertJsonPath('data.retreat.pix_beneficiary_name', 'Retiro de Casais')
+            ->assertJsonPath('data.retreat.receipt_whatsapp', '+55 63 99999-0000');
     }
 
     public function test_portal_response_never_exposes_internal_or_administrative_data(): void
@@ -115,7 +136,7 @@ class PortalTest extends TestCase
     public function test_announcements_from_other_retreats_are_not_shown(): void
     {
         $enrollment = Enrollment::factory()->flexible()->create();
-        $otherRetreat = \App\Models\Retreat::factory()->create();
+        $otherRetreat = Retreat::factory()->create();
 
         Announcement::factory()->create([
             'retreat_id' => $otherRetreat->id, 'title' => 'De outro retiro', 'published_at' => now()->subDay(),

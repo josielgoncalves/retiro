@@ -77,8 +77,10 @@
         </q-card>
 
         <q-card v-if="enrollment.payment_mode === 'fixed'" class="card--soft">
-          <q-card-section>
+          <q-card-section class="row items-center">
             <div class="text-subtitle1 text-weight-medium">Parcelas</div>
+            <q-space />
+            <q-btn outline color="primary" icon="event_repeat" label="Regerar vencimentos" @click="openRegeneration" />
           </q-card-section>
           <q-list separator>
             <q-item v-for="installment in enrollment.installments" :key="installment.installment_number">
@@ -90,6 +92,7 @@
                 <q-badge :color="installmentStatusColor(installment.status)">
                   {{ installmentStatusLabel(installment.status) }}
                 </q-badge>
+                <q-btn flat dense size="sm" label="Editar parcela" @click="openInstallmentDialog(installment)" />
               </q-item-section>
             </q-item>
           </q-list>
@@ -121,7 +124,7 @@
                 color="primary"
                 outline
                 :label="accessLink?.has_active_token ? 'Regenerar link' : 'Gerar link'"
-                @click="confirmRegenerate = true"
+                @click="confirmRegenerateLink = true"
               />
               <q-btn
                 v-if="accessLink?.has_active_token"
@@ -182,7 +185,35 @@
       </q-card>
     </q-dialog>
 
-    <q-dialog v-model="confirmRegenerate">
+    <q-dialog v-model="showInstallmentDialog">
+      <q-card style="min-width: 400px;">
+        <q-card-section class="text-h6">Editar parcela {{ installmentForm.installment_number }}</q-card-section>
+        <q-card-section class="q-gutter-md">
+          <q-input v-model="installmentForm.due_date" outlined type="date" label="Vencimento *" />
+          <q-input v-model.number="installmentForm.amount_reais" outlined type="number" min="0.01" step="0.01" label="Valor (R$)" :disable="installmentForm.status === 'paid'" />
+          <q-select v-if="installmentAmountChanged" v-model="installmentForm.compensating_installment_id" outlined label="Compensar diferença na parcela *" :options="compensationOptions" emit-value map-options />
+          <div v-if="installmentForm.status === 'paid'" class="text-caption text-warning">Parcela quitada: apenas o vencimento pode ser corrigido.</div>
+        </q-card-section>
+        <q-card-actions align="right"><q-btn flat label="Cancelar" v-close-popup /><q-btn color="primary" label="Salvar" :loading="savingInstallment" @click="submitInstallment" /></q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <q-dialog v-model="showRegenerationDialog">
+      <q-card style="min-width: 520px;">
+        <q-card-section class="text-h6">Regerar vencimentos pendentes</q-card-section>
+        <q-card-section class="q-gutter-md">
+          <q-input v-model="regenerationForm.first_due_date" outlined type="date" label="Nova data inicial *" />
+          <q-select v-model="regenerationForm.periodicity" outlined label="Periodicidade" :options="periodicityOptions" emit-value map-options />
+          <q-btn outline color="primary" label="Visualizar comparação" :loading="loadingRegeneration" @click="previewRegeneration" />
+          <q-list v-if="regenerationPreview.length" bordered separator>
+            <q-item v-for="item in regenerationPreview" :key="item.id"><q-item-section>Parcela {{ item.installment_number }}</q-item-section><q-item-section side>{{ formatDate(item.old_due_date) }} → {{ formatDate(item.new_due_date) }}</q-item-section></q-item>
+          </q-list>
+        </q-card-section>
+        <q-card-actions align="right"><q-btn flat label="Cancelar" v-close-popup /><q-btn color="primary" label="Confirmar alteração" :disable="!regenerationPreview.length" :loading="savingRegeneration" @click="confirmDueDateRegeneration" /></q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <q-dialog v-model="confirmRegenerateLink">
       <q-card>
         <q-card-section class="text-h6">Gerar novo link?</q-card-section>
         <q-card-section>
@@ -209,7 +240,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { api } from '@/boot/axios';
@@ -223,6 +254,7 @@ import {
   normalizePhoneForWhatsApp,
 } from '@/utils/format';
 
+interface Installment { id: number; installment_number: number; amount_cents: number; paid_cents: number; due_date: string; status: string }
 interface Enrollment {
   id: number;
   payment_mode: 'fixed' | 'flexible';
@@ -234,7 +266,7 @@ interface Enrollment {
   couple: { partner_one_name: string; partner_two_name: string; phone: string };
   retreat: { name: string };
   next_due_installment: { due_date: string } | null;
-  installments: Array<{ installment_number: number; amount_cents: number; due_date: string; status: string }>;
+  installments: Installment[];
 }
 
 interface Payment {
@@ -258,10 +290,22 @@ const showPaymentDialog = ref(false);
 const savingPayment = ref(false);
 const showReverseDialog = ref(false);
 const savingReverse = ref(false);
-const confirmRegenerate = ref(false);
+const confirmRegenerateLink = ref(false);
 const confirmRevoke = ref(false);
 const reverseReason = ref('');
 const paymentToReverse = ref<Payment | null>(null);
+const showInstallmentDialog = ref(false);
+const savingInstallment = ref(false);
+const originalInstallmentAmount = ref(0);
+const installmentForm = reactive({ id: 0, installment_number: 0, due_date: '', amount_reais: 0, status: '', compensating_installment_id: null as number | null });
+const installmentAmountChanged = computed(() => Math.round(installmentForm.amount_reais * 100) !== originalInstallmentAmount.value);
+const compensationOptions = computed(() => (enrollment.value?.installments ?? []).filter((item) => item.id !== installmentForm.id && item.status !== 'paid').map((item) => ({ label: `Parcela ${item.installment_number} — ${formatCents(item.amount_cents)}`, value: item.id })));
+const showRegenerationDialog = ref(false);
+const loadingRegeneration = ref(false);
+const savingRegeneration = ref(false);
+const regenerationForm = reactive({ first_due_date: '', periodicity: 'monthly' });
+const regenerationPreview = ref<Array<{ id: number; installment_number: number; old_due_date: string; new_due_date: string }>>([]);
+const periodicityOptions = [{ label: 'Mensal', value: 'monthly' }, { label: 'Semanal', value: 'weekly' }];
 
 const methodOptions = [
   { label: 'Pix', value: 'pix' },
@@ -332,6 +376,55 @@ async function submitReverse() {
   } finally {
     savingReverse.value = false;
   }
+}
+
+function openInstallmentDialog(item: Installment) {
+  Object.assign(installmentForm, { id: item.id, installment_number: item.installment_number, due_date: item.due_date, amount_reais: item.amount_cents / 100, status: item.status, compensating_installment_id: null });
+  originalInstallmentAmount.value = item.amount_cents;
+  showInstallmentDialog.value = true;
+}
+
+async function submitInstallment() {
+  savingInstallment.value = true;
+  try {
+    const payload: Record<string, unknown> = { due_date: installmentForm.due_date };
+    if (installmentAmountChanged.value) {
+      payload.amount_cents = Math.round(installmentForm.amount_reais * 100);
+      payload.compensating_installment_id = installmentForm.compensating_installment_id;
+    }
+    await api.patch(`/installments/${installmentForm.id}`, payload);
+    showInstallmentDialog.value = false;
+    $q.notify({ type: 'positive', message: 'Parcela atualizada.' });
+    await loadAll();
+  } catch (err) {
+    $q.notify({ type: 'negative', message: (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Não foi possível atualizar a parcela.' });
+  } finally { savingInstallment.value = false; }
+}
+
+function openRegeneration() {
+  regenerationForm.first_due_date = '';
+  regenerationPreview.value = [];
+  showRegenerationDialog.value = true;
+}
+
+async function previewRegeneration() {
+  loadingRegeneration.value = true;
+  try {
+    const response = await api.post(`/enrollments/${route.params.id}/installments/regenerate`, regenerationForm);
+    regenerationPreview.value = response.data.data;
+  } catch (err) {
+    $q.notify({ type: 'negative', message: (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Não foi possível calcular os vencimentos.' });
+  } finally { loadingRegeneration.value = false; }
+}
+
+async function confirmDueDateRegeneration() {
+  savingRegeneration.value = true;
+  try {
+    await api.post(`/enrollments/${route.params.id}/installments/regenerate`, { ...regenerationForm, confirm: true });
+    showRegenerationDialog.value = false;
+    $q.notify({ type: 'positive', message: 'Vencimentos atualizados.' });
+    await loadAll();
+  } finally { savingRegeneration.value = false; }
 }
 
 async function regenerateLink() {

@@ -7,7 +7,10 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['name', 'description', 'start_date', 'end_date', 'location', 'registration_open', 'status'])]
+#[Fillable([
+    'name', 'description', 'start_date', 'end_date', 'location', 'registration_open', 'status',
+    'cover_image_path', 'pix_key_type', 'pix_key', 'pix_beneficiary_name', 'receipt_whatsapp',
+])]
 class Retreat extends Model
 {
     use HasFactory;

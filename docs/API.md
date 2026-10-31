@@ -13,6 +13,15 @@ Base path: `/api/v1`. Todas as respostas são JSON. Rotas autenticadas usam Lara
 
 ## Retiros
 
+Criação e edição aceitam `multipart/form-data`. Além dos dados gerais, o contrato inclui:
+
+- `cover_image`: JPG, PNG ou WebP, máximo de 5 MB;
+- `remove_cover_image`: booleano disponível na edição;
+- `pix_key_type`: `cpf|cnpj|email|phone|random`;
+- `pix_key`, `pix_beneficiary_name` e `receipt_whatsapp`.
+
+Somente administradores podem criar ou alterar retiros. A resposta fornece `cover_image_url`, nunca o caminho interno armazenado. A capa é lida por `GET /public/retreats/{id}/cover`.
+
 | Método | Rota | Observações |
 |---|---|---|
 | GET | `/retreats` | Paginado, `?per_page=` |

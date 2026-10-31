@@ -24,6 +24,10 @@ Route::middleware(['throttle:portal-access', 'portal.token', 'private.headers'])
         Route::get('/announcements', [PortalController::class, 'announcements']);
     });
 
+Route::get('/public/retreats/{retreat}/cover', [RetreatController::class, 'cover'])
+    ->middleware('throttle:portal-access')
+    ->name('retreats.cover');
+
 Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
@@ -32,6 +36,9 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::apiResource('couples', CoupleController::class)->except(['destroy']);
 
     Route::apiResource('enrollments', EnrollmentController::class)->except(['destroy']);
+    Route::post('/installments/preview', [EnrollmentController::class, 'previewInstallments']);
+    Route::patch('/installments/{installment}', [EnrollmentController::class, 'updateInstallment']);
+    Route::post('/enrollments/{enrollment}/installments/regenerate', [EnrollmentController::class, 'regenerateInstallments']);
     Route::post('/enrollments/{enrollment}/cancel', [EnrollmentController::class, 'cancel']);
 
     Route::get('/enrollments/{enrollment}/payments', [PaymentController::class, 'index']);

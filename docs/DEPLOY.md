@@ -58,7 +58,7 @@ docker compose -f compose.prod.yaml exec postgres \
   pg_dump -U "$DB_USERNAME" "$DB_DATABASE" | gzip > backup-$(date +%Y%m%d-%H%M).sql.gz
 ```
 
-Automatize isso via cron no host, com rotação de arquivos antigos. Nada além do banco precisa de backup — as imagens Docker são reproduzíveis a partir do código-fonte.
+Automatize isso via cron no host, com rotação de arquivos antigos. Além do banco, faça backup do volume Docker `retreat_uploads`, que contém as capas privadas enviadas pelos administradores (`storage/app/private/retreats` dentro da API). As imagens Docker continuam reproduzíveis a partir do código-fonte.
 
 ## Restauração
 
@@ -72,10 +72,12 @@ Restaure sempre em um banco vazio/novo, nunca sobre um banco com dados ativos, a
 ## Atualizações
 
 ```bash
-git pull
-docker compose -f compose.prod.yaml --env-file .env.production up -d --build
-docker compose -f compose.prod.yaml --env-file .env.production exec api php artisan migrate --force
+./infra/scripts/atualizar.sh
 ```
+
+O script segue a branch `main` por padrão e executa backup do banco e das capas, atualização somente por fast-forward, build com atualização das imagens base, subida dos serviços, health check, migrations e limpeza de imagens/cache Docker sem uso há mais de sete dias. A limpeza nunca inclui volumes. Mantém os sete backups mais recentes de cada tipo.
+
+Opções disponíveis: `--sempre`, `--sem-backup`, `--sem-limpeza`, `--dry-run` e `--branch=NOME`. Use `ENV_FILE=/caminho/.env` quando o arquivo não se chamar `.env.production`.
 
 ## Limitações conhecidas do MVP para produção
 

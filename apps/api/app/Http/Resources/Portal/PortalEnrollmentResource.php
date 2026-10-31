@@ -30,6 +30,13 @@ class PortalEnrollmentResource extends JsonResource
                 'start_date' => $this->retreat->start_date?->toDateString(),
                 'end_date' => $this->retreat->end_date?->toDateString(),
                 'location' => $this->retreat->location,
+                'cover_image_url' => $this->retreat->cover_image_path
+                    ? route('retreats.cover', $this->retreat->id, false)
+                    : null,
+                'pix_key_type' => $this->retreat->pix_key_type,
+                'pix_key' => $this->retreat->pix_key,
+                'pix_beneficiary_name' => $this->retreat->pix_beneficiary_name,
+                'receipt_whatsapp' => $this->retreat->receipt_whatsapp,
             ],
             'payment_mode' => $this->payment_mode,
             'total_amount_cents' => $this->total_amount_cents,

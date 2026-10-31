@@ -24,6 +24,11 @@ class RetreatFactory extends Factory
             'location' => fake()->city(),
             'registration_open' => true,
             'status' => Retreat::STATUS_ACTIVE,
+            'cover_image_path' => null,
+            'pix_key_type' => null,
+            'pix_key' => null,
+            'pix_beneficiary_name' => null,
+            'receipt_whatsapp' => null,
         ];
     }
 }

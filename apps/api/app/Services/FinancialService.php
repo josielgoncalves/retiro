@@ -9,6 +9,8 @@ use App\Models\Payment;
 use App\Models\PaymentAllocation;
 use App\Models\Retreat;
 use App\Models\User;
+use Carbon\CarbonImmutable;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -42,6 +44,35 @@ class FinancialService
         }
 
         return $amounts;
+    }
+
+    /** @return array<int, array{installment_number:int,due_date:string,amount_cents:int}> */
+    public function previewInstallments(int $totalCents, int $count, string $firstDueDate, string $periodicity): array
+    {
+        if ($totalCents < 1 || $count < 1 || $count > 120 || $totalCents < $count) {
+            throw ValidationException::withMessages([
+                'installment_count' => ['A quantidade deve permitir parcelas de pelo menos um centavo.'],
+            ]);
+        }
+
+        $amounts = $this->distributeInstallmentAmounts($totalCents, $count);
+        $first = CarbonImmutable::parse($firstDueDate)->startOfDay();
+        $originalDay = $first->day;
+
+        return array_map(function (int $index) use ($amounts, $first, $originalDay, $periodicity) {
+            if ($periodicity === 'weekly') {
+                $dueDate = $first->addWeeks($index);
+            } else {
+                $month = $first->startOfMonth()->addMonths($index);
+                $dueDate = $month->day(min($originalDay, $month->daysInMonth));
+            }
+
+            return [
+                'installment_number' => $index + 1,
+                'due_date' => $dueDate->toDateString(),
+                'amount_cents' => $amounts[$index],
+            ];
+        }, range(0, $count - 1));
     }
 
     /**
@@ -80,7 +111,23 @@ class FinancialService
 
             if ($data['payment_mode'] === Enrollment::MODE_FIXED) {
                 $dueDates = array_column($data['installments'], 'due_date');
-                $amounts = $this->distributeInstallmentAmounts($data['total_amount_cents'], count($dueDates));
+                $providedAmounts = array_column($data['installments'], 'amount_cents');
+                $hasCustomAmounts = count($providedAmounts) === count($dueDates);
+                $amounts = $hasCustomAmounts
+                    ? array_map('intval', $providedAmounts)
+                    : $this->distributeInstallmentAmounts($data['total_amount_cents'], count($dueDates));
+
+                if (array_sum($amounts) !== (int) $data['total_amount_cents']) {
+                    throw ValidationException::withMessages([
+                        'installments' => ['A soma das parcelas deve ser exatamente igual ao valor contratado.'],
+                    ]);
+                }
+
+                if (collect($amounts)->contains(fn (int $amount) => $amount <= 0)) {
+                    throw ValidationException::withMessages([
+                        'installments' => ['Todas as parcelas devem possuir valor maior que zero.'],
+                    ]);
+                }
 
                 foreach ($dueDates as $index => $dueDate) {
                     Installment::create([
@@ -93,6 +140,85 @@ class FinancialService
             }
 
             return $enrollment;
+        });
+    }
+
+    public function updateInstallment(Installment $installment, array $data, ?User $user = null): Installment
+    {
+        return DB::transaction(function () use ($installment, $data, $user) {
+            $target = Installment::whereKey($installment->id)->lockForUpdate()->firstOrFail();
+            $enrollment = Enrollment::whereKey($target->enrollment_id)->lockForUpdate()->firstOrFail();
+            $target->load('allocations.payment');
+            $before = $target->toArray();
+            $newAmount = (int) ($data['amount_cents'] ?? $target->amount_cents);
+
+            if ($newAmount !== $target->amount_cents) {
+                if ($target->status() === Installment::STATUS_PAID) {
+                    throw ValidationException::withMessages(['amount_cents' => ['O valor de uma parcela quitada não pode ser alterado.']]);
+                }
+                if ($newAmount < $target->paidCents()) {
+                    throw ValidationException::withMessages(['amount_cents' => ['O valor não pode ser inferior ao total já recebido nesta parcela.']]);
+                }
+
+                $compensatingId = (int) ($data['compensating_installment_id'] ?? 0);
+                $compensating = Installment::where('enrollment_id', $enrollment->id)
+                    ->whereKey($compensatingId)->whereKeyNot($target->id)->lockForUpdate()->first();
+                if (! $compensating) {
+                    throw ValidationException::withMessages(['compensating_installment_id' => ['Selecione outra parcela desta inscrição para compensar a diferença.']]);
+                }
+                $compensating->load('allocations.payment');
+                if ($compensating->status() === Installment::STATUS_PAID) {
+                    throw ValidationException::withMessages(['compensating_installment_id' => ['A parcela de compensação não pode estar quitada.']]);
+                }
+
+                $difference = $newAmount - $target->amount_cents;
+                $compensatingAmount = $compensating->amount_cents - $difference;
+                if ($compensatingAmount <= 0 || $compensatingAmount < $compensating->paidCents()) {
+                    throw ValidationException::withMessages(['compensating_installment_id' => ['A compensação deixaria a outra parcela inválida ou abaixo do valor recebido.']]);
+                }
+                $compensatingBefore = $compensating->toArray();
+                $compensating->update(['amount_cents' => $compensatingAmount]);
+                app(AuditLogger::class)->log('installment.compensated', $compensating, $compensatingBefore, $compensating->fresh()->toArray(), $user);
+            }
+
+            $target->update(['due_date' => $data['due_date'], 'amount_cents' => $newAmount]);
+            app(AuditLogger::class)->log('installment.updated', $target, $before, $target->fresh()->toArray(), $user);
+
+            return $target->fresh()->load('allocations.payment');
+        });
+    }
+
+    /** @return array<int, array{id:int,installment_number:int,old_due_date:string,new_due_date:string}> */
+    public function previewPendingDueDates(Enrollment $enrollment, string $firstDueDate, string $periodicity): array
+    {
+        $pending = $enrollment->installments()->with('allocations.payment')->get()
+            ->filter(fn (Installment $installment) => $installment->status() !== Installment::STATUS_PAID)
+            ->values();
+        $dates = $this->previewInstallments(max(1, $pending->count()), max(1, $pending->count()), $firstDueDate, $periodicity);
+
+        return $pending->map(fn (Installment $installment, int $index) => [
+            'id' => $installment->id,
+            'installment_number' => $installment->installment_number,
+            'old_due_date' => $installment->due_date->toDateString(),
+            'new_due_date' => $dates[$index]['due_date'],
+        ])->all();
+    }
+
+    public function regeneratePendingDueDates(Enrollment $enrollment, string $firstDueDate, string $periodicity, ?User $user = null): Collection
+    {
+        return DB::transaction(function () use ($enrollment, $firstDueDate, $periodicity, $user) {
+            Enrollment::whereKey($enrollment->id)->lockForUpdate()->firstOrFail();
+            $changes = $this->previewPendingDueDates($enrollment, $firstDueDate, $periodicity);
+            $updated = collect();
+            foreach ($changes as $change) {
+                $installment = Installment::where('enrollment_id', $enrollment->id)->whereKey($change['id'])->lockForUpdate()->firstOrFail();
+                $before = $installment->toArray();
+                $installment->update(['due_date' => $change['new_due_date']]);
+                app(AuditLogger::class)->log('installment.due_dates_regenerated', $installment, $before, $installment->fresh()->toArray(), $user);
+                $updated->push($installment->fresh()->load('allocations.payment'));
+            }
+
+            return $updated;
         });
     }
 
@@ -152,7 +278,7 @@ class FinancialService
 
             if ($amountCents > $balance) {
                 throw ValidationException::withMessages([
-                    'amount_cents' => ["O valor informado (R$ ".number_format($amountCents / 100, 2, ',', '.').") excede o saldo restante da inscrição (R$ ".number_format($balance / 100, 2, ',', '.').')'],
+                    'amount_cents' => ['O valor informado (R$ '.number_format($amountCents / 100, 2, ',', '.').') excede o saldo restante da inscrição (R$ '.number_format($balance / 100, 2, ',', '.').')'],
                 ]);
             }
 

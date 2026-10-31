@@ -5,9 +5,14 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Enrollment\StoreEnrollmentRequest;
 use App\Http\Requests\Enrollment\UpdateEnrollmentRequest;
+use App\Http\Requests\Installment\PreviewInstallmentsRequest;
+use App\Http\Requests\Installment\RegenerateInstallmentsRequest;
+use App\Http\Requests\Installment\UpdateInstallmentRequest;
 use App\Http\Resources\EnrollmentResource;
+use App\Http\Resources\InstallmentResource;
 use App\Models\Couple;
 use App\Models\Enrollment;
+use App\Models\Installment;
 use App\Models\Retreat;
 use App\Services\AuditLogger;
 use App\Services\FinancialService;
@@ -98,5 +103,39 @@ class EnrollmentController extends Controller
         $this->auditLogger->log('enrollment.cancelled', $enrollment, $before, $enrollment->toArray());
 
         return new EnrollmentResource($enrollment->load(['retreat', 'couple']));
+    }
+
+    public function previewInstallments(PreviewInstallmentsRequest $request)
+    {
+        $data = $request->validated();
+
+        return response()->json(['data' => $this->financialService->previewInstallments(
+            $data['total_amount_cents'], $data['installment_count'], $data['first_due_date'], $data['periodicity']
+        )]);
+    }
+
+    public function updateInstallment(UpdateInstallmentRequest $request, Installment $installment)
+    {
+        return new InstallmentResource(
+            $this->financialService->updateInstallment($installment, $request->validated(), $request->user())
+        );
+    }
+
+    public function regenerateInstallments(RegenerateInstallmentsRequest $request, Enrollment $enrollment)
+    {
+        if (! $enrollment->isFixed()) {
+            throw ValidationException::withMessages(['enrollment' => ['A inscrição não utiliza parcelas fixas.']]);
+        }
+
+        $data = $request->validated();
+        if (! ($data['confirm'] ?? false)) {
+            return response()->json(['data' => $this->financialService->previewPendingDueDates(
+                $enrollment, $data['first_due_date'], $data['periodicity']
+            )]);
+        }
+
+        return InstallmentResource::collection($this->financialService->regeneratePendingDueDates(
+            $enrollment, $data['first_due_date'], $data['periodicity'], $request->user()
+        ));
     }
 }
