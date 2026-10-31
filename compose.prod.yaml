@@ -81,7 +81,8 @@ services:
       api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:80/"]
+      # Valida também o Laravel; consultar apenas / testava somente a SPA.
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:80/up"]
       interval: 10s
       timeout: 5s
       retries: 10
